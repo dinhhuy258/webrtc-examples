@@ -8,6 +8,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var (
+	RoomManagerInstance = RoomManager{}
+)
+
 type Participant struct {
 	Host bool
 	Conn *websocket.Conn
