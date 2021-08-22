@@ -18,6 +18,13 @@ type RoomManager struct {
 	Rooms map[string][]Participant
 }
 
+func (rm *RoomManager) Init() {
+	rm.Mutex.Lock()
+	defer rm.Mutex.Unlock()
+
+	rm.Rooms = make(map[string][]Participant)
+}
+
 func (rm *RoomManager) CreateRoom() string {
 	rm.Mutex.Lock()
 	defer rm.Mutex.Unlock()
@@ -35,4 +42,25 @@ func (rm *RoomManager) CreateRoom() string {
 	rm.Rooms[roomID] = []Participant{}
 
 	return roomID
+}
+
+func (rm *RoomManager) HasRoom(roomID string) bool {
+	rm.Mutex.RLock()
+	defer rm.Mutex.RUnlock()
+
+	if _, ok := rm.Rooms[roomID]; ok {
+		return true
+	}
+
+	return false
+}
+
+func (rm *RoomManager) Join(roomID string, host bool, conn *websocket.Conn) {
+	rm.Mutex.Lock()
+	defer rm.Mutex.Unlock()
+
+	rm.Rooms[roomID] = append(rm.Rooms[roomID], Participant{
+		host,
+		conn,
+	})
 }
