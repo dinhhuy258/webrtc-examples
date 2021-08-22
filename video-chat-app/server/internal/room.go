@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v3"
 )
 
 var (
@@ -13,8 +13,8 @@ var (
 )
 
 type Participant struct {
-	Host bool
-	Conn *websocket.Conn
+	Websocket           *ThreadSafeWriter
+	PeerConnection *webrtc.PeerConnection
 }
 
 type RoomManager struct {
@@ -59,12 +59,12 @@ func (rm *RoomManager) HasRoom(roomID string) bool {
 	return false
 }
 
-func (rm *RoomManager) Join(roomID string, host bool, conn *websocket.Conn) {
+func (rm *RoomManager) Join(roomID string, websocket *ThreadSafeWriter, peerConnection *webrtc.PeerConnection) {
 	rm.Mutex.Lock()
 	defer rm.Mutex.Unlock()
 
 	rm.Rooms[roomID] = append(rm.Rooms[roomID], Participant{
-		host,
-		conn,
+		websocket,
+		peerConnection,
 	})
 }
