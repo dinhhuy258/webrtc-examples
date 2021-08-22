@@ -1,7 +1,15 @@
+import React from "react";
+import { BrowserRouter, Route, Switch } from "react-router-dom";
+
+import CreateRoom from "./components/CreateRoom"
 function App() {
   return (
     <div className="App">
-      Hello world
+      <BrowserRouter>
+        <Switch>
+          <Route path="/" exact component={CreateRoom}></Route>
+        </Switch>
+      </BrowserRouter>
     </div>
   );
 }
