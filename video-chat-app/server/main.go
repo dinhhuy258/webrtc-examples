@@ -1,9 +1,15 @@
 package main
 
 import (
+  "video-chat-app/internal"
+
 	"encoding/json"
 	"log"
 	"net/http"
+)
+
+var (
+	roomManager = internal.RoomManager{}
 )
 
 type RoomResponseData struct {
@@ -17,7 +23,7 @@ func CreateRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(
 		RoomResponseData{
-			RoomId: "123123123",
+			RoomId: roomManager.CreateRoom(),
 		},
 	)
 }
