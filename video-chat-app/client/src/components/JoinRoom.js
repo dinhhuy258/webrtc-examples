@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from "react";
 
 const JoinRoom = (props) => {
   const webSocketRef = useRef();
+  const peerConnectionRef = useRef();
+  const userStream = useRef();
 
   const getUserMedia = async () => {
     try {
@@ -14,6 +16,7 @@ const JoinRoom = (props) => {
   useEffect(() => {
     getUserMedia().then((stream) => {
       document.getElementById('localVideo').srcObject = stream
+      userStream.current = stream;
 
       webSocketRef.current = new WebSocket(
         `ws://localhost:8080/join?roomID=${props.match.params.roomID}`
@@ -25,10 +28,43 @@ const JoinRoom = (props) => {
           return console.log('Failed to parse msg')
         }
 
-        console.log(message)
+        if (message.event == "offer") {
+          let offer = JSON.parse(message.data)
+          if (!offer) {
+            return console.log('failed to parse answer')
+          }
+
+          handleVideoOfferMsg(offer)
+        }
       });
     });
   });
+
+  const createPeerConnection = () => {
+    const peerConnection = new RTCPeerConnection({});
+
+    return peerConnection
+  }
+
+
+  const handleVideoOfferMsg = async (offer) => {
+    peerConnectionRef.current = createPeerConnection()
+
+    await peerConnectionRef.current.setRemoteDescription(
+      new RTCSessionDescription(offer)
+    )
+
+    userStream.current.getTracks().forEach((track) => {
+      peerConnectionRef.current.addTrack(track, userStream.current);
+    });
+
+    const answer = await peerConnectionRef.current.createAnswer();
+    await peerConnectionRef.current.setLocalDescription(answer);
+
+    webSocketRef.current.send(
+      JSON.stringify({ event: 'answer', data: JSON.stringify(answer) })
+    );
+  }
 
   return (
     <div>

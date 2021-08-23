@@ -81,8 +81,33 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 
   signalPeerConnections(room)
 
+  message := &websocketMessage{}
   for {
+    _, raw, err := conn.ReadMessage()
+    if err != nil {
+      log.Println(err)
+      return
+    }
 
+    if err := json.Unmarshal(raw, &message); err != nil {
+			log.Println(err)
+			return
+		}
+
+    switch message.Event {
+    case "answer":
+      log.Println(message)
+      answer := webrtc.SessionDescription{}
+      if err := json.Unmarshal([]byte(message.Data), &answer); err != nil {
+				log.Println(err)
+				return
+			}
+
+      if err := peerConnection.SetRemoteDescription(answer); err != nil {
+				log.Println(err)
+				return
+			}
+    }
   }
 }
 
