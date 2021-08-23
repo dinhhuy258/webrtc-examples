@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -27,6 +28,11 @@ func (t *ThreadSafeWriter) WriteJSON(data interface{}) error {
 	defer t.Unlock()
 
 	return t.Conn.WriteJSON(data)
+}
+
+type websocketMessage struct {
+	Event string `json:"event"`
+	Data  string `json:"data"`
 }
 
 type RoomResponseData struct {
@@ -68,7 +74,16 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RoomManagerInstance.Join(roomID, conn, peerConnection)
+  defer peerConnection.Close()
+
+
+  room := RoomManagerInstance.Join(roomID, conn, peerConnection)
+
+  signalPeerConnections(room)
+
+  for {
+
+  }
 }
 
 func createPeerConnection() *webrtc.PeerConnection {
@@ -77,8 +92,6 @@ func createPeerConnection() *webrtc.PeerConnection {
 		log.Printf("failed to create peer connection %v", err)
 		return nil
 	}
-
-	defer peerConnection.Close()
 
 	for _, typ := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {
 		if _, err := peerConnection.AddTransceiverFromKind(typ, webrtc.RTPTransceiverInit{
@@ -90,4 +103,98 @@ func createPeerConnection() *webrtc.PeerConnection {
 	}
 
 	return peerConnection
+}
+
+// signalPeerConnections updates each PeerConnection so that it getting all the expected media tracks
+func signalPeerConnections(room *Room) {
+	room.Mutex.Lock()
+	defer func() {
+		room.Mutex.Unlock()
+	}()
+
+	attemptSync := func() (tryAgain bool) {
+		for i := range room.Participants {
+			participant := room.Participants[i]
+
+			if participant.PeerConnection.ConnectionState() == webrtc.PeerConnectionStateClosed {
+				// Delete closed connection
+				room.Participants = append(room.Participants[:i], room.Participants[i+1:]...)
+				return true // We modified the slice, start from the beginning
+			}
+
+			// map of sender we already are seanding, so we don't double send
+			existingSenders := map[string]bool{}
+			for _, sender := range participant.PeerConnection.GetSenders() {
+				if sender.Track() == nil {
+					continue
+				}
+
+				existingSenders[sender.Track().ID()] = true
+
+				// If we have a RTPSender that doesn't map to a existing track remove and signal
+				if _, ok := room.TrackLocals[sender.Track().ID()]; !ok {
+					if err := participant.PeerConnection.RemoveTrack(sender); err != nil {
+						return true
+					}
+				}
+			}
+
+			// Don't receive videos we are sending, make sure we don't have loopback
+			for _, receiver := range participant.PeerConnection.GetReceivers() {
+				if receiver.Track() == nil {
+					continue
+				}
+
+				existingSenders[receiver.Track().ID()] = true
+			}
+
+			// Add all track we aren't sending yet to the PeerConnection
+			for trackID := range room.TrackLocals {
+				if _, ok := existingSenders[trackID]; !ok {
+					if _, err := participant.PeerConnection.AddTrack(room.TrackLocals[trackID]); err != nil {
+						return true
+					}
+				}
+			}
+
+			sdp, err := participant.PeerConnection.CreateOffer(nil)
+			if err != nil {
+				return true
+			}
+
+			if err = participant.PeerConnection.SetLocalDescription(sdp); err != nil {
+				return true
+			}
+
+			// Send offer to Websocket
+			offerString, err := json.Marshal(sdp)
+			if err != nil {
+				return true
+			}
+
+			if err = participant.Websocket.WriteJSON(&websocketMessage{
+				Event: "offer",
+				Data:  string(offerString),
+			}); err != nil {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for syncAttempt := 0; ; syncAttempt++ {
+		if syncAttempt == 25 {
+			// Release the lock and attempt a sync in 3 seconds. We might be blocking a RemoveTrack or AddTrack
+			go func() {
+				time.Sleep(time.Second * 3)
+				signalPeerConnections(room)
+			}()
+			return
+		}
+
+		if !attemptSync() {
+			break
+		}
+	}
 }
