@@ -28,7 +28,7 @@ const JoinRoom = (props) => {
           return console.log('Failed to parse msg')
         }
 
-        if (message.event == "offer") {
+        if (message.event === "offer") {
           let offer = JSON.parse(message.data)
           if (!offer) {
             return console.log('failed to parse answer')
@@ -36,16 +36,39 @@ const JoinRoom = (props) => {
 
           handleVideoOfferMsg(offer)
         }
+        else if (message.event === "candidate") {
+          let candidate = JSON.parse(message.data)
+          if (!candidate) {
+            return console.log('failed to parse candidate')
+          }
+
+          handleNewICECandidate(candidate)
+        }
       });
     });
   });
 
   const createPeerConnection = () => {
     const peerConnection = new RTCPeerConnection({});
+    peerConnection.onicecandidate = handleICECandidateEvent;
 
-    return peerConnection
+    return peerConnection;
   }
 
+  const handleICECandidateEvent = (e) => {
+    if (!e.candidate) {
+      // All candidates have been sent
+      return
+    }
+
+    webSocketRef.current.send(
+      JSON.stringify({ event: 'candidate', data: JSON.stringify(e.candidate) })
+    );
+  }
+
+  const handleNewICECandidate = async (candidate) => {
+    peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
+  }
 
   const handleVideoOfferMsg = async (offer) => {
     peerConnectionRef.current = createPeerConnection()

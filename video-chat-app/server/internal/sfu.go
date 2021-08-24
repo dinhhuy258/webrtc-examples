@@ -74,41 +74,71 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  defer peerConnection.Close()
+	defer peerConnection.Close()
 
+	room := RoomManagerInstance.Join(roomID, conn, peerConnection)
 
-  room := RoomManagerInstance.Join(roomID, conn, peerConnection)
+	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
+		handleICECandidateEvent(i, conn)
+	})
 
-  signalPeerConnections(room)
+	signalPeerConnections(room)
 
-  message := &websocketMessage{}
-  for {
-    _, raw, err := conn.ReadMessage()
-    if err != nil {
-      log.Println(err)
-      return
-    }
-
-    if err := json.Unmarshal(raw, &message); err != nil {
+	message := &websocketMessage{}
+	for {
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
 			log.Println(err)
 			return
 		}
 
-    switch message.Event {
-    case "answer":
-      log.Println(message)
-      answer := webrtc.SessionDescription{}
-      if err := json.Unmarshal([]byte(message.Data), &answer); err != nil {
+		if err := json.Unmarshal(raw, &message); err != nil {
+			log.Println(err)
+			return
+		}
+
+		switch message.Event {
+		case "answer":
+			answer := webrtc.SessionDescription{}
+			if err := json.Unmarshal([]byte(message.Data), &answer); err != nil {
 				log.Println(err)
 				return
 			}
 
-      if err := peerConnection.SetRemoteDescription(answer); err != nil {
+			if err := peerConnection.SetRemoteDescription(answer); err != nil {
 				log.Println(err)
 				return
 			}
-    }
-  }
+		case "candidate":
+			candidate := webrtc.ICECandidateInit{}
+			if err := json.Unmarshal([]byte(message.Data), &candidate); err != nil {
+				log.Println(err)
+				return
+			}
+			if err := peerConnection.AddICECandidate(candidate); err != nil {
+				log.Printf("failed to add ice candidate %v", err)
+				return
+			}
+		}
+	}
+}
+
+func handleICECandidateEvent(i *webrtc.ICECandidate, conn *ThreadSafeWriter) {
+	if i == nil {
+		// all candidates have been sent
+		return
+	}
+
+	candidatestring, err := json.Marshal(i.ToJSON())
+	if err != nil {
+		log.Println("failed to parsr ice candidate %w", err)
+		return
+	}
+
+	conn.WriteJSON(&websocketMessage{
+		Event: "candidate",
+		Data:  string(candidatestring),
+	})
 }
 
 func createPeerConnection() *webrtc.PeerConnection {
