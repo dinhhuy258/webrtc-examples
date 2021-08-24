@@ -79,7 +79,52 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 	room := RoomManagerInstance.Join(roomID, conn, peerConnection)
 
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
-		handleICECandidateEvent(i, conn)
+		if i == nil {
+			// all candidates have been sent
+			return
+		}
+
+		candidatestring, err := json.Marshal(i.ToJSON())
+		if err != nil {
+			log.Println("failed to parsr ice candidate %w", err)
+			return
+		}
+
+		conn.WriteJSON(&websocketMessage{
+			Event: "candidate",
+			Data:  string(candidatestring),
+		})
+	})
+
+	peerConnection.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
+		switch pcs {
+		case webrtc.PeerConnectionStateFailed:
+			if err := peerConnection.Close(); err != nil {
+				log.Print(err)
+			}
+		case webrtc.PeerConnectionStateClosed:
+			// If PeerConnection is closed remove it from global list
+			signalPeerConnections(room)
+		}
+	})
+
+	peerConnection.OnTrack(func(t *webrtc.TrackRemote, r *webrtc.RTPReceiver) {
+		// Create a track to fan out our incoming video to all peers
+		trackLocal := addTrack(room, t)
+		defer removeTrack(room, trackLocal)
+
+		buf := make([]byte, 1500)
+
+		for {
+			i, _, err := t.Read(buf)
+			if err != nil {
+				return
+			}
+
+			if _, err = trackLocal.Write(buf[:i]); err != nil {
+				return
+			}
+		}
 	})
 
 	signalPeerConnections(room)
@@ -123,24 +168,6 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleICECandidateEvent(i *webrtc.ICECandidate, conn *ThreadSafeWriter) {
-	if i == nil {
-		// all candidates have been sent
-		return
-	}
-
-	candidatestring, err := json.Marshal(i.ToJSON())
-	if err != nil {
-		log.Println("failed to parsr ice candidate %w", err)
-		return
-	}
-
-	conn.WriteJSON(&websocketMessage{
-		Event: "candidate",
-		Data:  string(candidatestring),
-	})
-}
-
 func createPeerConnection() *webrtc.PeerConnection {
 	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -158,6 +185,32 @@ func createPeerConnection() *webrtc.PeerConnection {
 	}
 
 	return peerConnection
+}
+
+func addTrack(room *Room, t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
+	room.Mutex.Lock()
+	defer func() {
+		room.Mutex.Unlock()
+	}()
+
+	// Create a new TrackLocal with the same codec as our incoming
+	trackLocal, err := webrtc.NewTrackLocalStaticRTP(t.Codec().RTPCodecCapability, t.ID(), t.StreamID())
+	if err != nil {
+		panic(err)
+	}
+
+	room.TrackLocals[t.ID()] = trackLocal
+
+	return trackLocal
+}
+
+func removeTrack(room *Room, t *webrtc.TrackLocalStaticRTP) {
+	room.Mutex.Lock()
+	defer func() {
+		room.Mutex.Unlock()
+	}()
+
+	delete(room.TrackLocals, t.ID())
 }
 
 // signalPeerConnections updates each PeerConnection so that it getting all the expected media tracks

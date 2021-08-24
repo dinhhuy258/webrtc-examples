@@ -51,6 +51,7 @@ const JoinRoom = (props) => {
   const createPeerConnection = () => {
     const peerConnection = new RTCPeerConnection({});
     peerConnection.onicecandidate = handleICECandidateEvent;
+    peerConnection.ontrack = handleTrackEvent;
 
     return peerConnection;
   }
@@ -88,6 +89,29 @@ const JoinRoom = (props) => {
       JSON.stringify({ event: 'answer', data: JSON.stringify(answer) })
     );
   }
+
+  const handleTrackEvent = (e) => {
+    console.log("Received track")
+    console.log(e)
+    if (e.track.kind === 'audio') {
+      return
+    }
+
+    let el = document.createElement(e.track.kind)
+    el.srcObject = e.streams[0]
+    el.autoplay = true
+    el.controls = true
+    document.getElementById('remoteVideos').appendChild(el)
+    e.track.onmute = function(e) {
+      el.play()
+    }
+
+    e.streams[0].onremovetrack = ({ track }) => {
+      if (el.parentNode) {
+        el.parentNode.removeChild(el)
+      }
+    }
+  };
 
   return (
     <div>
