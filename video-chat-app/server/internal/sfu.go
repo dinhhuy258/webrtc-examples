@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -118,10 +119,12 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 		for {
 			i, _, err := t.Read(buf)
 			if err != nil {
+        log.Println(err)
 				return
 			}
 
 			if _, err = trackLocal.Write(buf[:i]); err != nil {
+        log.Println(err)
 				return
 			}
 		}
@@ -191,6 +194,7 @@ func addTrack(room *Room, t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
 	room.Mutex.Lock()
 	defer func() {
 		room.Mutex.Unlock()
+    signalPeerConnections(room)
 	}()
 
 	// Create a new TrackLocal with the same codec as our incoming
@@ -208,9 +212,29 @@ func removeTrack(room *Room, t *webrtc.TrackLocalStaticRTP) {
 	room.Mutex.Lock()
 	defer func() {
 		room.Mutex.Unlock()
+    signalPeerConnections(room)
 	}()
 
 	delete(room.TrackLocals, t.ID())
+}
+
+func dispatchKeyFrame(room *Room) {
+	room.Mutex.Lock()
+	defer room.Mutex.Unlock()
+
+	for i := range room.Participants {
+		peerConnection := room.Participants[i].PeerConnection
+		for _, receiver := range peerConnection.GetReceivers() {
+			if receiver.Track() == nil {
+				return
+			}
+			_ = peerConnection.WriteRTCP([]rtcp.Packet{
+				&rtcp.PictureLossIndication{
+					MediaSSRC: uint32(receiver.Track().SSRC()),
+				},
+			})
+		}
+	}
 }
 
 // signalPeerConnections updates each PeerConnection so that it getting all the expected media tracks
@@ -218,6 +242,7 @@ func signalPeerConnections(room *Room) {
 	room.Mutex.Lock()
 	defer func() {
 		room.Mutex.Unlock()
+    dispatchKeyFrame(room)
 	}()
 
 	attemptSync := func() (tryAgain bool) {
