@@ -3,7 +3,6 @@ import React, { useEffect, useRef } from "react";
 const JoinRoom = (props) => {
   const webSocketRef = useRef();
   const peerConnectionRef = useRef();
-  const userStream = useRef();
 
   const getUserMedia = async () => {
     try {
@@ -16,7 +15,11 @@ const JoinRoom = (props) => {
   useEffect(() => {
     getUserMedia().then((stream) => {
       document.getElementById('localVideo').srcObject = stream
-      userStream.current = stream;
+
+      peerConnectionRef.current = createPeerConnection()
+      stream.getTracks().forEach((track) => {
+        peerConnectionRef.current.addTrack(track, stream);
+      });
 
       webSocketRef.current = new WebSocket(
         `ws://localhost:8080/join?roomID=${props.match.params.roomID}`
@@ -62,25 +65,26 @@ const JoinRoom = (props) => {
       return
     }
 
+    console.log("Sending ice candidate")
     webSocketRef.current.send(
       JSON.stringify({ event: 'candidate', data: JSON.stringify(e.candidate) })
     );
   }
 
   const handleNewICECandidate = async (candidate) => {
+    console.log("Receive ice candidate")
+    console.log(candidate)
+
     peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
   }
 
   const handleVideoOfferMsg = async (offer) => {
-    peerConnectionRef.current = createPeerConnection()
+    console.log("Received offer")
+    console.log(offer)
 
     await peerConnectionRef.current.setRemoteDescription(
       new RTCSessionDescription(offer)
     )
-
-    userStream.current.getTracks().forEach((track) => {
-      peerConnectionRef.current.addTrack(track, userStream.current);
-    });
 
     const answer = await peerConnectionRef.current.createAnswer();
     await peerConnectionRef.current.setLocalDescription(answer);
@@ -93,6 +97,7 @@ const JoinRoom = (props) => {
   const handleTrackEvent = (e) => {
     console.log("Received track")
     console.log(e)
+
     if (e.track.kind === 'audio') {
       return
     }
@@ -108,6 +113,7 @@ const JoinRoom = (props) => {
 
     e.streams[0].onremovetrack = ({ track }) => {
       if (el.parentNode) {
+        console.log("Remove track")
         el.parentNode.removeChild(el)
       }
     }
