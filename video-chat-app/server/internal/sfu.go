@@ -40,6 +40,15 @@ type RoomResponseData struct {
 	RoomId string `json:"room_id"`
 }
 
+func DispatchKeyFrames() {
+  RoomManagerInstance.Mutex.Lock()
+  defer RoomManagerInstance.Mutex.Unlock()
+
+  for _, room := range RoomManagerInstance.Rooms {
+    dispatchKeyFrame(room)
+  }
+}
+
 func CreateRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Add("Content-Type", "application/json")
