@@ -6,7 +6,7 @@ const JoinRoom = (props) => {
 
   const getUserMedia = async () => {
     try {
-      return await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      return await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     } catch (err) {
       console.log(err);
     }

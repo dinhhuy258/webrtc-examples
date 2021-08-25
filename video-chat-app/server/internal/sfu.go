@@ -235,7 +235,7 @@ func dispatchKeyFrame(room *Room) {
 		peerConnection := room.Participants[i].PeerConnection
 		for _, receiver := range peerConnection.GetReceivers() {
 			if receiver.Track() == nil {
-				return
+				continue
 			}
 			_ = peerConnection.WriteRTCP([]rtcp.Packet{
 				&rtcp.PictureLossIndication{
