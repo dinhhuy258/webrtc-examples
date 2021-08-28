@@ -8,13 +8,12 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-var (
-	RoomManagerInstance = RoomManager{}
-)
+var RoomManagerInstance = RoomManager{}
 
 type Participant struct {
 	Websocket      *ThreadSafeWriter
 	PeerConnection *webrtc.PeerConnection
+  DataChannel    *webrtc.DataChannel
 }
 
 type Room struct {
@@ -42,7 +41,7 @@ func (rm *RoomManager) CreateRoom() string {
 
 	// Generate room id
 	rand.Seed(time.Now().UnixNano())
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 	b := make([]rune, 8)
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
@@ -54,7 +53,7 @@ func (rm *RoomManager) CreateRoom() string {
 		ID:           roomID,
 		Mutex:        sync.RWMutex{},
 		Participants: []Participant{},
-    TrackLocals: map[string]*webrtc.TrackLocalStaticRTP{},
+		TrackLocals:  map[string]*webrtc.TrackLocalStaticRTP{},
 	}
 
 	return roomID
@@ -78,18 +77,24 @@ func (rm *RoomManager) GetRoom(roomID string) *Room {
 	return rm.Rooms[roomID]
 }
 
-func (rm *RoomManager) Join(roomID string, websocket *ThreadSafeWriter, peerConnection *webrtc.PeerConnection) *Room {
+func (rm *RoomManager) Join(
+	roomID string,
+	websocket *ThreadSafeWriter,
+	peerConnection *webrtc.PeerConnection,
+  dataChannel *webrtc.DataChannel,
+) *Room {
 	rm.Mutex.Lock()
 	defer rm.Mutex.Unlock()
 
 	participant := Participant{
 		websocket,
 		peerConnection,
+    dataChannel,
 	}
 
 	rm.Rooms[roomID].Mutex.Lock()
 	defer rm.Rooms[roomID].Mutex.Unlock()
 	rm.Rooms[roomID].Participants = append(rm.Rooms[roomID].Participants, participant)
 
-  return rm.Rooms[roomID]
+	return rm.Rooms[roomID]
 }

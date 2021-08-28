@@ -84,15 +84,24 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer peerConnection.Close()
 
-	room := RoomManagerInstance.Join(roomID, conn, peerConnection)
-
-	dataChannel, err := peerConnection.CreateDataChannel("Message", &webrtc.DataChannelInit{})
+  dataChannel, err := peerConnection.CreateDataChannel("Signalling Server Data Channel", &webrtc.DataChannelInit{})
 	if err != nil {
 		log.Println("failed to create data channel %w", err)
 	}
-	dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Println("on message")
-	})
+
+	room := RoomManagerInstance.Join(roomID, conn, peerConnection, dataChannel)
+
+  peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
+    dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		  log.Println("On data channel message")
+      room.Mutex.RLock()
+      defer room.Mutex.RUnlock()
+
+      for _, participant := range room.Participants {
+        participant.DataChannel.Send(msg.Data)
+      }
+    })
+  })
 
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
 		if i == nil {

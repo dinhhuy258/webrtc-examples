@@ -19,6 +19,10 @@ const JoinRoom = (props) => {
 
       peerConnectionRef.current = createPeerConnection()
       dataChannelRef.current = createDataChannel()
+      peerConnectionRef.current.ondatachannel = dataChannel => {
+        dataChannel.onmessage = handleMessageOnDataChannel
+      }
+
       stream.getTracks().forEach((track) => {
         peerConnectionRef.current.addTrack(track, stream);
       });
@@ -62,8 +66,7 @@ const JoinRoom = (props) => {
   }
 
   const createDataChannel = () => {
-    const dataChannel = peerConnectionRef.current.createDataChannel("Message")
-    dataChannel.onmessage = handleMessageOnDataChannel
+    const dataChannel = peerConnectionRef.current.createDataChannel("ClientMessage")
 
     return dataChannel
   }
@@ -132,8 +135,24 @@ const JoinRoom = (props) => {
     }
   };
 
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    const message = document.getElementById('messageBox').value
+    if (message == "") {
+      return
+    }
+
+    document.getElementById('messageBox').value = ""
+    dataChannelRef.current.send(message)
+  };
+
   return (
     <div>
+      <h3> Chat </h3>
+      <ul id="messages"></ul>
+      <input id="messageBox" />
+      <button onClick={sendMessage}>Send message</button>
+
       <h3> Local Video </h3>
       <video id="localVideo" width="160" height="120" autoPlay muted></video> <br />
 
