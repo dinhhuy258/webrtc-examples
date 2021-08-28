@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from "react";
 const JoinRoom = (props) => {
   const webSocketRef = useRef();
   const peerConnectionRef = useRef();
+  const dataChannelRef = useRef();
 
   const getUserMedia = async () => {
     try {
@@ -17,6 +18,7 @@ const JoinRoom = (props) => {
       document.getElementById('localVideo').srcObject = stream
 
       peerConnectionRef.current = createPeerConnection()
+      dataChannelRef.current = createDataChannel()
       stream.getTracks().forEach((track) => {
         peerConnectionRef.current.addTrack(track, stream);
       });
@@ -57,6 +59,17 @@ const JoinRoom = (props) => {
     peerConnection.ontrack = handleTrackEvent;
 
     return peerConnection;
+  }
+
+  const createDataChannel = () => {
+    const dataChannel = peerConnectionRef.current.createDataChannel("Message")
+    dataChannel.onmessage = handleMessageOnDataChannel
+
+    return dataChannel
+  }
+
+  const handleMessageOnDataChannel = (e) => {
+    console.log(e)
   }
 
   const handleICECandidateEvent = (e) => {

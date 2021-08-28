@@ -12,11 +12,9 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-var (
-	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-)
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 // Helper to make Gorilla Websockets threadsafe
 type ThreadSafeWriter struct {
@@ -41,12 +39,12 @@ type RoomResponseData struct {
 }
 
 func DispatchKeyFrames() {
-  RoomManagerInstance.Mutex.Lock()
-  defer RoomManagerInstance.Mutex.Unlock()
+	RoomManagerInstance.Mutex.Lock()
+	defer RoomManagerInstance.Mutex.Unlock()
 
-  for _, room := range RoomManagerInstance.Rooms {
-    dispatchKeyFrame(room)
-  }
+	for _, room := range RoomManagerInstance.Rooms {
+		dispatchKeyFrame(room)
+	}
 }
 
 func CreateRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +86,14 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	room := RoomManagerInstance.Join(roomID, conn, peerConnection)
 
+	dataChannel, err := peerConnection.CreateDataChannel("Message", &webrtc.DataChannelInit{})
+	if err != nil {
+		log.Println("failed to create data channel %w", err)
+	}
+	dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
+		log.Println("on message")
+	})
+
 	peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
 		if i == nil {
 			// all candidates have been sent
@@ -128,12 +134,12 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 		for {
 			i, _, err := t.Read(buf)
 			if err != nil {
-        log.Println(err)
+				log.Println(err)
 				return
 			}
 
 			if _, err = trackLocal.Write(buf[:i]); err != nil {
-        log.Println(err)
+				log.Println(err)
 				return
 			}
 		}
@@ -203,7 +209,7 @@ func addTrack(room *Room, t *webrtc.TrackRemote) *webrtc.TrackLocalStaticRTP {
 	room.Mutex.Lock()
 	defer func() {
 		room.Mutex.Unlock()
-    signalPeerConnections(room)
+		signalPeerConnections(room)
 	}()
 
 	// Create a new TrackLocal with the same codec as our incoming
@@ -221,7 +227,7 @@ func removeTrack(room *Room, t *webrtc.TrackLocalStaticRTP) {
 	room.Mutex.Lock()
 	defer func() {
 		room.Mutex.Unlock()
-    signalPeerConnections(room)
+		signalPeerConnections(room)
 	}()
 
 	delete(room.TrackLocals, t.ID())
@@ -251,7 +257,7 @@ func signalPeerConnections(room *Room) {
 	room.Mutex.Lock()
 	defer func() {
 		room.Mutex.Unlock()
-    dispatchKeyFrame(room)
+		dispatchKeyFrame(room)
 	}()
 
 	attemptSync := func() (tryAgain bool) {
