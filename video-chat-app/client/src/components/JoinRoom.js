@@ -20,7 +20,7 @@ const JoinRoom = (props) => {
       peerConnectionRef.current = createPeerConnection()
       dataChannelRef.current = createDataChannel()
       peerConnectionRef.current.ondatachannel = dataChannel => {
-        dataChannel.onmessage = handleMessageOnDataChannel
+        dataChannel.channel.onmessage = handleMessageOnDataChannel
       }
 
       stream.getTracks().forEach((track) => {
@@ -66,13 +66,16 @@ const JoinRoom = (props) => {
   }
 
   const createDataChannel = () => {
-    const dataChannel = peerConnectionRef.current.createDataChannel("ClientMessage")
+    const dataChannel = peerConnectionRef.current.createDataChannel("Client Data Channel")
 
     return dataChannel
   }
 
   const handleMessageOnDataChannel = (e) => {
-    console.log(e)
+    const li = document.createElement('li');
+    li.textContent = e.data;
+
+    document.getElementById('messages').appendChild(li);
   }
 
   const handleICECandidateEvent = (e) => {
