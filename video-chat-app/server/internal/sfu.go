@@ -98,7 +98,7 @@ func JoinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
       defer room.Mutex.RUnlock()
 
       for _, participant := range room.Participants {
-        participant.DataChannel.Send(msg.Data)
+        participant.DataChannel.SendText(string(msg.Data))
       }
     })
   })
