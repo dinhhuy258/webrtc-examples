@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-const JoinRoom = (props) => {
+const JoinCall = (props) => {
   const webSocketRef = useRef();
   const peerConnectionRef = useRef();
   const dataChannelRef = useRef();
@@ -165,5 +165,5 @@ const JoinRoom = (props) => {
   );
 };
 
-export default JoinRoom;
+export default JoinCall;
 

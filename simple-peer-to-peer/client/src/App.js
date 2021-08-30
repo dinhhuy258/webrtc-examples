@@ -1,16 +1,16 @@
 import React from "react";
 import { BrowserRouter, Route, Switch } from "react-router-dom";
 
-import CreateRoom from "./components/CreateRoom"
-import JoinRoom from "./components/JoinRoom"
+import SelectUser from "./components/SelectUser"
+import JoinCall from "./components/JoinCall"
 
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
         <Switch>
-          <Route path="/" exact component={CreateRoom}></Route>
-          <Route path="/room/:roomID" component={JoinRoom}></Route>
+          <Route path="/" exact component={SelectUser}></Route>
+          <Route path="/room/:roomID" component={JoinCall}></Route>
         </Switch>
       </BrowserRouter>
     </div>
