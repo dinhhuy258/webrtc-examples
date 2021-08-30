@@ -3,7 +3,8 @@ import React from "react";
 const SelectUser = (props) => {
   const select = async (username, e) => {
     e.preventDefault();
-    console.log(username)
+
+    props.history.push(`/video-call/${username}`)
   };
 
   return (

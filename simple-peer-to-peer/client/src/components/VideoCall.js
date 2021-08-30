@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-const JoinCall = (props) => {
+const VideoCall = (props) => {
   const webSocketRef = useRef();
   const peerConnectionRef = useRef();
   const dataChannelRef = useRef();
@@ -165,5 +165,5 @@ const JoinCall = (props) => {
   );
 };
 
-export default JoinCall;
+export default VideoCall;
 

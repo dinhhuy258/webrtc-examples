@@ -2,7 +2,7 @@ import React from "react";
 import { BrowserRouter, Route, Switch } from "react-router-dom";
 
 import SelectUser from "./components/SelectUser"
-import JoinCall from "./components/JoinCall"
+import VideoCall from "./components/VideoCall"
 
 function App() {
   return (
@@ -10,7 +10,7 @@ function App() {
       <BrowserRouter>
         <Switch>
           <Route path="/" exact component={SelectUser}></Route>
-          <Route path="/room/:roomID" component={JoinCall}></Route>
+          <Route path="/video-call/:username" component={VideoCall}></Route>
         </Switch>
       </BrowserRouter>
     </div>
