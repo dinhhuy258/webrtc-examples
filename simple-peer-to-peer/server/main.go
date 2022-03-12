@@ -30,9 +30,13 @@ type websocketMessage struct {
 	Data  string `json:"data"`
 }
 
-type callMessage struct {
+type requestCallMessage struct {
 	Caller string `json:"caller"`
 	Callee string `json:"callee"`
+}
+
+type signallingMessage struct {
+	Target string `json:"target"`
 	Sdp    string `json:"sdp"`
 }
 
@@ -95,52 +99,41 @@ func connectHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			break
-		case "answer":
-			callMessage := &callMessage{}
-			if err := json.Unmarshal([]byte(message.Data), &callMessage); err != nil {
+		case "offer", "answer":
+			signallingMessage := &signallingMessage{}
+			if err := json.Unmarshal([]byte(message.Data), &signallingMessage); err != nil {
 				return
 			}
 
-			if callerWebsocket, ok := webSocketUsersMap[callMessage.Caller]; ok {
+			if callerWebsocket, ok := webSocketUsersMap[signallingMessage.Target]; ok {
 				callerWebsocket.WriteJSON(&websocketMessage{
-					Event: "answer",
-					Data:  callMessage.Sdp,
+					Event: message.Event,
+					Data:  signallingMessage.Sdp,
 				})
 			} else {
-				log.Println(callMessage.Caller + " is not online")
-
-				webSocketUsersMap[callMessage.Callee].WriteJSON(&websocketMessage{
-					Event: "message",
-					Data:  "User " + callMessage.Caller + " is not online",
-				})
+				log.Println(signallingMessage.Target + " is not online")
 			}
 
 			break
-		case "offer":
-			callMessage := &callMessage{}
-			if err := json.Unmarshal([]byte(message.Data), &callMessage); err != nil {
+		case "request-call":
+			requestCallMessage := &requestCallMessage{}
+			if err := json.Unmarshal([]byte(message.Data), &requestCallMessage); err != nil {
 				return
 			}
 
-			if calleeWebsocket, ok := webSocketUsersMap[callMessage.Callee]; ok {
-				log.Println(callMessage.Caller + " call to " + callMessage.Callee)
-
-				offerData, err := json.Marshal(callMessage)
-				if err != nil {
-					log.Println(err)
-					return
-				}
+			if calleeWebsocket, ok := webSocketUsersMap[requestCallMessage.Callee]; ok {
+				log.Println(requestCallMessage.Caller + " call to " + requestCallMessage.Callee)
 
 				calleeWebsocket.WriteJSON(&websocketMessage{
-					Event: "offer",
-					Data:  string(offerData),
+					Event: "request-call",
+					Data:  message.Data,
 				})
 			} else {
-				log.Println(callMessage.Callee + " is not online")
+				log.Println(requestCallMessage.Callee + " is not online")
 
-				webSocketUsersMap[callMessage.Caller].WriteJSON(&websocketMessage{
+				webSocketUsersMap[requestCallMessage.Caller].WriteJSON(&websocketMessage{
 					Event: "message",
-					Data:  "User " + callMessage.Callee + " is not online",
+					Data:  "User " + requestCallMessage.Callee + " is not online",
 				})
 			}
 

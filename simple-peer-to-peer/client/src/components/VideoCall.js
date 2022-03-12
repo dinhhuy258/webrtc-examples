@@ -7,7 +7,6 @@ const VideoCall = (props) => {
   const peerConnectionRef = useRef()
   const [receivingCall, setReceivingCall] = useState(false);
   const [caller, setCaller] = useState("");
-  const [callerSignal, setCallerSignal] = useState();
   const username = props.match.params.username
   const anotherUsername = usernames.find(u => u !== username)
 
@@ -59,16 +58,7 @@ const VideoCall = (props) => {
     peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
   }
 
-  const handleAnswerMessage = async (answer) => {
-    console.log("Callee has answered")
-
-    var answerDesc = new RTCSessionDescription(JSON.parse(answer))
-    peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answerDesc))
-  }
-
-  const handleVideoOfferMsg = async (offer) => {
-    console.log("Received offer")
-
+  const handleOfferMessage = async (offer) => {
     var offerDesc = new RTCSessionDescription(JSON.parse(offer));
     await peerConnectionRef.current.setRemoteDescription(
       new RTCSessionDescription(offerDesc)
@@ -83,13 +73,17 @@ const VideoCall = (props) => {
           event: 'answer',
           data: JSON.stringify(
             {
-              caller: anotherUsername,
-              callee: username,
+              target: anotherUsername,
               sdp: JSON.stringify(peerConnectionRef.current.localDescription)
             }
           )
         })
-    );
+    )
+  }
+
+  const handleAnswerMessage = async (answer) => {
+    var answerDesc = new RTCSessionDescription(JSON.parse(answer))
+    peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answerDesc))
   }
 
   const getUserMedia = async () => {
@@ -114,15 +108,19 @@ const VideoCall = (props) => {
       const message = JSON.parse(event.data);
 
       switch (message.event) {
-        case "offer":
+        case "request-call":
           setReceivingCall(true);
-
           const messageData = JSON.parse(message.data);
           setCaller(messageData.caller);
-          setCallerSignal(messageData.sdp);
+
+          break;
+        case "offer":
+          console.log("Receive offer")
+          handleOfferMessage(message.data)
 
           break;
         case "answer":
+          console.log("Receive answer")
           handleAnswerMessage(message.data)
 
           break;
@@ -133,12 +131,11 @@ const VideoCall = (props) => {
           }
 
           handleNewICECandidate(candidate)
-          break;
-        case "close":
-          console.log("close");
+
           break;
         case "message":
           alert(message.data)
+
           break;
         default:
           break;
@@ -149,7 +146,23 @@ const VideoCall = (props) => {
   function acceptCall() {
     setReceivingCall(false);
 
-    handleVideoOfferMsg(callerSignal);
+    // Create an offer and send it to the caller
+    peerConnectionRef.current.createOffer().then(async (offer) => {
+      await peerConnectionRef.current.setLocalDescription(offer);
+    }).then(() => {
+      webSocketRef.current.send(
+        JSON.stringify(
+          {
+            event: 'offer',
+            data: JSON.stringify(
+              {
+                target: anotherUsername,
+                sdp: JSON.stringify(peerConnectionRef.current.localDescription)
+              }
+            )
+          })
+      );
+    });
   }
 
   function rejectCall() {
@@ -159,20 +172,15 @@ const VideoCall = (props) => {
   const handleCall = async (e) => {
     e.preventDefault();
 
-    peerConnectionRef.current.createOffer().then(async (offer) => {
-      await peerConnectionRef.current.setLocalDescription(offer);
-    }).then(() => {
-      webSocketRef.current.send(JSON.stringify({
-        event: "offer",
-        data: JSON.stringify(
-          {
-            caller: username,
-            callee: anotherUsername,
-            sdp: JSON.stringify(peerConnectionRef.current.localDescription)
-          }
-        )
-      }));
-    });
+    webSocketRef.current.send(JSON.stringify({
+      event: "request-call",
+      data: JSON.stringify(
+        {
+          caller: username,
+          callee: anotherUsername,
+        }
+      )
+    }));
   }
 
   let incomingCall;
