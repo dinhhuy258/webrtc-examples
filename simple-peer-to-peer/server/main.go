@@ -36,6 +36,11 @@ type callMessage struct {
 	Sdp    string `json:"sdp"`
 }
 
+type iceCandidateMessage struct {
+	Target    string `json:"target"`
+	Candidate string `json:"candidate"`
+}
+
 func connectHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Add("Content-Type", "application/json")
@@ -72,6 +77,24 @@ func connectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch message.Event {
+		case "ice-candidate":
+			log.Println("Received ICE candidate")
+
+			iceCandidateMessage := &iceCandidateMessage{}
+			if err := json.Unmarshal([]byte(message.Data), &iceCandidateMessage); err != nil {
+				return
+			}
+
+			if targetWebsocket, ok := webSocketUsersMap[iceCandidateMessage.Target]; ok {
+				targetWebsocket.WriteJSON(&websocketMessage{
+					Event: "ice-candidate",
+					Data:  iceCandidateMessage.Candidate,
+				})
+			} else {
+				log.Println(iceCandidateMessage.Target + " is not online")
+			}
+
+			break
 		case "answer":
 			callMessage := &callMessage{}
 			if err := json.Unmarshal([]byte(message.Data), &callMessage); err != nil {

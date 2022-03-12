@@ -33,7 +33,14 @@ const VideoCall = (props) => {
     }
 
     webSocketRef.current.send(
-      JSON.stringify({ event: 'candidate', data: JSON.stringify(e.candidate) })
+      JSON.stringify({
+        event: 'ice-candidate', data: JSON.stringify(
+          {
+            target: anotherUsername,
+            candidate: JSON.stringify(e.candidate)
+          }
+        )
+      })
     );
   }
 
@@ -119,7 +126,7 @@ const VideoCall = (props) => {
           handleAnswerMessage(message.data)
 
           break;
-        case "candidate":
+        case "ice-candidate":
           let candidate = JSON.parse(message.data)
           if (!candidate) {
             return console.log('failed to parse candidate')
