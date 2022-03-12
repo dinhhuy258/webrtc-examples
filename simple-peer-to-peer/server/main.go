@@ -93,7 +93,7 @@ func connectHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			break
-		case "call":
+		case "offer":
 			callMessage := &callMessage{}
 			if err := json.Unmarshal([]byte(message.Data), &callMessage); err != nil {
 				return
@@ -109,7 +109,7 @@ func connectHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				calleeWebsocket.WriteJSON(&websocketMessage{
-					Event: "call",
+					Event: "offer",
 					Data:  string(offerData),
 				})
 			} else {

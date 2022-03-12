@@ -8,7 +8,6 @@ const VideoCall = (props) => {
   const [receivingCall, setReceivingCall] = useState(false);
   const [caller, setCaller] = useState("");
   const [callerSignal, setCallerSignal] = useState();
-  const [callAccepted, setCallAccepted] = useState(false);
   const username = props.match.params.username
   const anotherUsername = usernames.find(u => u != username)
 
@@ -39,7 +38,6 @@ const VideoCall = (props) => {
       return
     }
 
-    console.log("Sending ice candidate")
     webSocketRef.current.send(
       JSON.stringify({ event: 'candidate', data: JSON.stringify(e.candidate) })
     );
@@ -115,7 +113,7 @@ const VideoCall = (props) => {
       const message = JSON.parse(event.data);
 
       switch (message.event) {
-        case "call":
+        case "offer":
           setReceivingCall(true);
 
           const messageData = JSON.parse(message.data);
@@ -164,7 +162,7 @@ const VideoCall = (props) => {
       await peerConnectionRef.current.setLocalDescription(offer);
     }).then(() => {
       webSocketRef.current.send(JSON.stringify({
-        event: "call",
+        event: "offer",
         data: JSON.stringify(
           {
             caller: username,
