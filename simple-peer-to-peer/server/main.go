@@ -33,6 +33,7 @@ type websocketMessage struct {
 type callMessage struct {
 	Caller string `json:"caller"`
 	Callee string `json:"callee"`
+	Sdp    string `json:"sdp"`
 }
 
 func connectHandler(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +72,27 @@ func connectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		switch message.Event {
+		case "answer":
+			callMessage := &callMessage{}
+			if err := json.Unmarshal([]byte(message.Data), &callMessage); err != nil {
+				return
+			}
+
+			if callerWebsocket, ok := webSocketUsersMap[callMessage.Caller]; ok {
+				callerWebsocket.WriteJSON(&websocketMessage{
+					Event: "answer",
+					Data:  callMessage.Sdp,
+				})
+			} else {
+				log.Println(callMessage.Caller + " is not online")
+
+				webSocketUsersMap[callMessage.Callee].WriteJSON(&websocketMessage{
+					Event: "message",
+					Data:  "User " + callMessage.Caller + " is not online",
+				})
+			}
+
+			break
 		case "call":
 			callMessage := &callMessage{}
 			if err := json.Unmarshal([]byte(message.Data), &callMessage); err != nil {
@@ -80,9 +102,15 @@ func connectHandler(w http.ResponseWriter, r *http.Request) {
 			if calleeWebsocket, ok := webSocketUsersMap[callMessage.Callee]; ok {
 				log.Println(callMessage.Caller + " call to " + callMessage.Callee)
 
+				offerData, err := json.Marshal(callMessage)
+				if err != nil {
+					log.Println(err)
+					return
+				}
+
 				calleeWebsocket.WriteJSON(&websocketMessage{
 					Event: "call",
-					Data:  callMessage.Caller,
+					Data:  string(offerData),
 				})
 			} else {
 				log.Println(callMessage.Callee + " is not online")
