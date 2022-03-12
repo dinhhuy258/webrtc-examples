@@ -9,7 +9,7 @@ const VideoCall = (props) => {
   const [caller, setCaller] = useState("");
   const [callerSignal, setCallerSignal] = useState();
   const username = props.match.params.username
-  const anotherUsername = usernames.find(u => u != username)
+  const anotherUsername = usernames.find(u => u !== username)
 
   if (!webSocketRef.current) {
     webSocketRef.current = new WebSocket(
@@ -18,17 +18,11 @@ const VideoCall = (props) => {
   }
 
   const handleTrackEvent = (e) => {
-    console.log("Received track")
-    console.log(e)
-
     if (e.track.kind === 'audio') {
       return
     }
 
-    let el = document.createElement(e.track.kind)
-    el.srcObject = e.streams[0]
-    el.autoplay = true
-    el.controls = true
+    console.log("Received remote video track")
     document.getElementById('remoteVideo').srcObject = e.streams[0]
   };
 
@@ -191,10 +185,10 @@ const VideoCall = (props) => {
       <button onClick={handleCall}>Call {anotherUsername}</button>
       {incomingCall}
       <h3> Local Video </h3>
-      <video id="localVideo" width="160" height="120" autoPlay muted></video> <br />
+      <video id="localVideo" width="128" height="128" autoPlay muted></video> <br />
 
       <h3> Remote Video </h3>
-      <video id="remoteVideo" autoPlay muted></video> <br />
+      <video id="remoteVideo" width="256" height="256" autoPlay muted></video> <br />
     </div>
   );
 };
