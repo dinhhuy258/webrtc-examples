@@ -7,6 +7,7 @@ const VideoCall = (props) => {
   const peerConnectionRef = useRef()
   const [receivingCall, setReceivingCall] = useState(false);
   const [caller, setCaller] = useState("");
+  const [callerSignal, setCallerSignal] = useState();
   const [callAccepted, setCallAccepted] = useState(false);
   const username = props.match.params.username
   const anotherUsername = usernames.find(u => u != username)
@@ -29,17 +30,7 @@ const VideoCall = (props) => {
     el.srcObject = e.streams[0]
     el.autoplay = true
     el.controls = true
-    document.getElementById('remoteVideos').appendChild(el)
-    e.track.onmute = function(e) {
-      el.play()
-    }
-
-    e.streams[0].onremovetrack = ({ track }) => {
-      if (el.parentNode) {
-        console.log("Remove track")
-        el.parentNode.removeChild(el)
-      }
-    }
+    document.getElementById('remoteVideo').srcObject = e.streams[0]
   };
 
   const handleICECandidateEvent = (e) => {
@@ -69,19 +60,36 @@ const VideoCall = (props) => {
     peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate))
   }
 
+  const handleAnswerMessage = async (answer) => {
+    console.log("Callee has answered")
+
+    var answerDesc = new RTCSessionDescription(JSON.parse(answer))
+    peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answerDesc))
+  }
+
   const handleVideoOfferMsg = async (offer) => {
     console.log("Received offer")
-    console.log(offer)
 
+    var offerDesc = new RTCSessionDescription(JSON.parse(offer));
     await peerConnectionRef.current.setRemoteDescription(
-      new RTCSessionDescription(offer)
+      new RTCSessionDescription(offerDesc)
     )
 
     const answer = await peerConnectionRef.current.createAnswer();
     await peerConnectionRef.current.setLocalDescription(answer);
 
     webSocketRef.current.send(
-      JSON.stringify({ event: 'answer', data: JSON.stringify(answer) })
+      JSON.stringify(
+        {
+          event: 'answer',
+          data: JSON.stringify(
+            {
+              caller: anotherUsername,
+              callee: username,
+              sdp: JSON.stringify(peerConnectionRef.current.localDescription)
+            }
+          )
+        })
     );
   }
 
@@ -109,19 +117,23 @@ const VideoCall = (props) => {
       switch (message.event) {
         case "call":
           setReceivingCall(true);
-          setCaller(message.data);
+
+          const messageData = JSON.parse(message.data);
+          setCaller(messageData.caller);
+          setCallerSignal(messageData.sdp);
 
           break;
         case "answer":
-          console.log("anser");
+          handleAnswerMessage(message.data)
+
           break;
         case "candidate":
-          // let candidate = JSON.parse(message.data)
-          // if (!candidate) {
-          //   return console.log('failed to parse candidate')
-          // }
-          //
-          // handleNewICECandidate(candidate)
+          let candidate = JSON.parse(message.data)
+          if (!candidate) {
+            return console.log('failed to parse candidate')
+          }
+
+          handleNewICECandidate(candidate)
           break;
         case "close":
           console.log("close");
@@ -137,7 +149,8 @@ const VideoCall = (props) => {
 
   function acceptCall() {
     setReceivingCall(false);
-    console.log("accept call")
+
+    handleVideoOfferMsg(callerSignal);
   }
 
   function rejectCall() {
@@ -147,24 +160,20 @@ const VideoCall = (props) => {
   const handleCall = async (e) => {
     e.preventDefault();
 
-    webSocketRef.current.send(JSON.stringify({
-      event: "call", data: '{ "caller": "' + username + '", "callee": "' + anotherUsername + '" }'
-    }));
-
-    // peerConnectionRef.current.createOffer().then(async (offer) => {
-    //   await peerConnectionRef.current.setLocalDescription(offer);
-    // }).then(() => {
-    //   webSocketRef.current.send(JSON.stringify({
-    //     event: "call",
-    //     data: JSON.stringify(
-    //       {
-    //         caller: username,
-    //         callee: anotherUsername,
-    //         // sdp: offer
-    //       }
-    //     )
-    //   }));
-    // });
+    peerConnectionRef.current.createOffer().then(async (offer) => {
+      await peerConnectionRef.current.setLocalDescription(offer);
+    }).then(() => {
+      webSocketRef.current.send(JSON.stringify({
+        event: "call",
+        data: JSON.stringify(
+          {
+            caller: username,
+            callee: anotherUsername,
+            sdp: JSON.stringify(peerConnectionRef.current.localDescription)
+          }
+        )
+      }));
+    });
   }
 
   let incomingCall;
